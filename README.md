@@ -4,6 +4,11 @@ Meldet gesetzliche Feiertage der gewählten Bundesländer mit Vorlauf (Standard:
 Alles wird über die Weboberfläche eingestellt (Port **8642**) – keine Umgebungsvariablen nötig.
 Einstellungen und Status liegen in `/data` (`config.json`, `status.json`).
 
+<p>
+  <img src="assets/screenshots/weboberflaeche.jpg" alt="Weboberfläche" width="420">
+  <img src="assets/screenshots/pushover.jpg" alt="Pushover-Benachrichtigung" width="380">
+</p>
+
 ## ZimaOS
 
 1. **App Store → Benutzerdefinierte App installieren → Import** und den Inhalt von
