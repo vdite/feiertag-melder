@@ -13,6 +13,7 @@ import time
 import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta
+from email import message_from_bytes
 from email.message import EmailMessage
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -288,6 +289,17 @@ button.prim{{background:var(--acc);border-color:var(--acc);color:#fff}}.knoepfe{
 <button type="submit" formaction="/zuruecksetzen">Gemeldete zurücksetzen</button></div>
 </form>
 <div class="card"><h2>Feiertage in den nächsten {vorlauf} Tagen</h2>{vorschau}</div>
+<div class="card"><h2>Einstellungen sichern &amp; übertragen</h2>
+<form method="get" action="/export" class="feld">
+<label><input type="checkbox" name="geheim" value="1" checked> Zugangsdaten mitexportieren (API-Token, SMTP-Passwort)</label>
+<div class="mut">Die Datei enthält sie dann im Klartext. Gut aufbewahren, nicht weitergeben.</div>
+<div class="knoepfe" style="margin-top:8px"><button type="submit">Exportieren</button></div>
+</form>
+<form method="post" action="/import" enctype="multipart/form-data" class="feld">
+<input type="file" name="datei" accept=".json,application/json" required>
+<div class="mut">Fehlen in der Datei Zugangsdaten, bleiben die gespeicherten erhalten. Die Liste der gemeldeten Feiertage wird nicht übertragen.</div>
+<div class="knoepfe" style="margin-top:8px"><button type="submit">Importieren</button></div>
+</form></div>
 </main></body></html>"""
 
 
@@ -364,14 +376,48 @@ def speichere_formular(form):
         speichere_json(CONFIG_FILE, cfg)
 
 
+def exportiere(mit_geheim):
+    cfg = {k: lade_config()[k] for k in STANDARD}
+    if not mit_geheim:
+        for k in GEHEIM:
+            cfg[k] = ""
+    return json.dumps({"app": "feiertag-melder", **cfg}, ensure_ascii=False, indent=2)
+
+
+def importiere(rumpf, typ):
+    teile = message_from_bytes(f"Content-Type: {typ}\r\n\r\n".encode() + rumpf)
+    teile = teile.get_payload() if teile.is_multipart() else []
+    datei = next((t for t in teile if t.get_param("name", header="content-disposition") == "datei"), None)
+    if datei is None:
+        raise ValueError("keine Datei erhalten")
+    try:
+        daten = json.loads(datei.get_payload(decode=True).decode("utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise ValueError("Datei ist kein gültiges JSON")
+    if not isinstance(daten, dict) or "laender" not in daten:
+        raise ValueError("keine Feiertag-Melder-Konfiguration")
+    # Wie ein abgeschicktes Formular behandeln, damit dieselben Prüfungen greifen
+    form = {}
+    for k in STANDARD:
+        wert = daten.get(k)
+        if isinstance(wert, list):
+            form[k] = [str(w) for w in wert]
+        elif wert is not None:
+            form[k] = [str(wert)]
+    speichere_formular(form)
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
-    def antworte(self, inhalt, typ="text/html; charset=utf-8"):
+    def antworte(self, inhalt, typ="text/html; charset=utf-8", dateiname=None):
         daten = inhalt.encode() if isinstance(inhalt, str) else inhalt
         self.send_response(200)
         self.send_header("Content-Type", typ)
+        if dateiname:
+            self.send_header("Content-Disposition", f'attachment; filename="{dateiname}"')
+            self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(daten)))
         self.end_headers()
         self.wfile.write(daten)
@@ -386,6 +432,11 @@ class Handler(BaseHTTPRequestHandler):
         if url.path == "/icon.png" and ICON_FILE.exists():
             self.antworte(ICON_FILE.read_bytes(), "image/png")
             return
+        if url.path == "/export":
+            mit_geheim = urllib.parse.parse_qs(url.query).get("geheim") == ["1"]
+            name = f"feiertag-melder-{date.today():%Y-%m-%d}.json"
+            self.antworte(exportiere(mit_geheim), "application/json; charset=utf-8", name)
+            return
         if url.path != "/":
             self.send_error(404)
             return
@@ -393,7 +444,18 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         laenge = int(self.headers.get("Content-Length", 0))
-        form = urllib.parse.parse_qs(self.rfile.read(laenge).decode(), keep_blank_values=True)
+        if laenge > 1_000_000:
+            self.send_error(413)
+            return
+        rumpf = self.rfile.read(laenge)
+        if self.path == "/import":
+            try:
+                importiere(rumpf, self.headers.get("Content-Type", ""))
+                self.weiter("Einstellungen importiert.")
+            except (ValueError, ZoneInfoNotFoundError) as fehler:
+                self.weiter(f"Fehler: Import fehlgeschlagen ({fehler})")
+            return
+        form = urllib.parse.parse_qs(rumpf.decode(), keep_blank_values=True)
         try:
             speichere_formular(form)
             if self.path == "/speichern":

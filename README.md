@@ -31,4 +31,5 @@ Oder ohne Bauen: `docker run -d -p 8642:8080 -v ./data:/data ghcr.io/vdite/feier
 - Prüft täglich zur eingestellten Uhrzeit (und sofort, falls die heutige Prüfung verpasst wurde).
 - Jeder Feiertag im Vorlauf-Fenster wird **einmal** gemeldet. War der Container aus, wird nachgeholt.
 - Gilt ein Feiertag in mehreren gewählten Ländern, kommt er nur einmal mit Länderliste.
+- Einstellungen lassen sich als JSON-Datei exportieren und wieder importieren, wahlweise mit Zugangsdaten (dann im Klartext, Datei gut aufbewahren).
 - Die Weboberfläche hat keinen Login – nur im Heimnetz betreiben, nicht ins Internet freigeben.
