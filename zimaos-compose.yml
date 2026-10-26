@@ -1,0 +1,47 @@
+name: feiertag-melder
+services:
+  feiertag-melder:
+    image: ghcr.io/vdite/feiertag-melder:latest
+    container_name: feiertag-melder
+    restart: unless-stopped
+    ports:
+      - target: 8080
+        published: "8642"
+        protocol: tcp
+    volumes:
+      - type: bind
+        source: /DATA/AppData/feiertag-melder
+        target: /data
+    x-casaos:
+      ports:
+        - container: "8080"
+          description:
+            en_us: Web UI
+            de_de: Weboberfläche
+      volumes:
+        - container: /data
+          description:
+            en_us: Settings and state
+            de_de: Einstellungen und Status
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: feiertag-melder
+  author: self
+  developer: self
+  category: Utilities
+  title:
+    en_us: Feiertag-Melder
+  tagline:
+    en_us: Public holiday reminders for German states
+    de_de: Erinnerung an gesetzliche Feiertage
+  description:
+    en_us: Notifies about German public holidays of selected states weeks in advance via Pushover or SMTP.
+    de_de: Meldet gesetzliche Feiertage der gewählten Bundesländer Wochen im Voraus per Pushover oder E-Mail.
+  scheme: http
+  hostname: ""
+  port_map: "8642"
+  index: /
+  icon: https://raw.githubusercontent.com/vdite/feiertag-melder/main/assets/icon.png

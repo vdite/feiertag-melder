@@ -1,0 +1,10 @@
+services:
+  feiertag-melder:
+    build: .
+    image: feiertag-melder:latest
+    container_name: feiertag-melder
+    restart: unless-stopped
+    ports:
+      - "8642:8080"
+    volumes:
+      - ./data:/data
